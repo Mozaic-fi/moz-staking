@@ -3,25 +3,63 @@ pragma solidity ^0.8.9;
 
 import "@layerzerolabs/solidity-examples/contracts/token/oft/v2/OFTV2.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+import "@uniswap/v3-core/contracts/libraries/LowGasSafeMath.sol";
+import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
+
+
+
 
 /**
  * @title MOZ is Mozaic's native ERC20 token based on LayerZero OmnichainFungibleToken.
  * @notice Use this contract only on the BASE CHAIN. It locks tokens on source, on outgoing send(), and unlocks tokens when receiving from other chains.
  * It has an hard cap and manages its own emissions and allocations.
  */
-contract MozToken is Ownable, OFTV2 {
 
- 	mapping(address => uint256) public userUnlockTime;
-    mapping(address => bool) public isAdmin;
+interface IERC721Receiver {
+    function onERC721Received(
+        address operator,
+        address from,
+        uint tokenId,
+        bytes calldata data
+    ) external returns (bytes4);
+}
+
+contract MozToken is Ownable, OFTV2, IERC721Receiver {
+
     address public mozStaking;
-	struct VestingAgreement {
-		uint256 lockStart; // timestamp at which locking starts, acts as a locking delay
-        uint256 lockPeriod; // time period over which locking occurs. The unit is Day
-        uint256 vestPeriod; // time period over which vesting occurs. The unit is Day
-        uint256 totalAmount; // total KAP amount to which the beneficiary is promised
-    }
+    address public treasury;
 
-    mapping(address => VestingAgreement[]) public vestingAgreements;
+    address private constant SwapRouter = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
+    address private constant WETH = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
+    INonfungiblePositionManager public nonfungiblePositionManager =
+        INonfungiblePositionManager(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
+
+    uint256 public positionTokenId = type(uint256).max;
+
+    int24 private constant MIN_TICK = -887272;
+    int24 private constant MAX_TICK = -MIN_TICK;
+    int24 private constant TICK_SPACING = 60;
+
+    bool private swapping;
+    bool public swapEnabled = false;
+
+
+    uint256 public maxFee = 1000; // 10%
+    uint256 public totalFees;
+    uint256 public liquidityFee;
+    uint256 public treasuryFee;
+
+    uint256 public swapTokensAtAmount;
+
+    uint256 public tokensForLiquidity;
+    uint256 public tokensForTreasury;
+
+    // store addresses that a automatic market maker pairs
+
+    mapping(address => bool) public automatedMarketMakerPairs;
 
 	/***********************************************/
 	/****************** CONSTRUCTOR ****************/
@@ -34,27 +72,34 @@ contract MozToken is Ownable, OFTV2 {
 	) OFTV2("Mozaic Token", "MOZ", _sharedDecimals, _layerZeroEndpoint) {
         require(_mozStaking != address(0x0), "Invalid address");
 		_mint(msg.sender, 545000000 * 10 ** _sharedDecimals); // 54.5% of 1000000000
-		isAdmin[msg.sender] = true;
         mozStaking = _mozStaking;
+        liquidityFee = 125; // 1.25%
+        treasuryFee = 125; // 1.25%
+        totalFees = liquidityFee + treasuryFee;
+        swapTokensAtAmount = 20000 * 10 ** _sharedDecimals; // 20k Moz token
     }
+
+    receive() external payable {}
 
     /***********************************************/
 	/********************* EVENT *******************/
 	/***********************************************/
 
-    event LockAndVestAndTransfer(address walletAddress, uint256 amount, uint256 lockStart, uint256 lockPeriod, uint256 vestPeriod);
+    event SetAutomatedMarketMakerPair(address indexed pair, bool indexed value);
 
+    event TreasuryWalletUpdated(
+        address indexed newWallet,
+        address indexed oldWallet
+    );
+
+    event SwapAndLiquify(
+        uint256 tokensSwapped,
+        uint256 ethReceived,
+        uint256 tokensIntoLiquidity
+    );
     /***********************************************/
 	/****************** MODIFIERS ******************/
 	/***********************************************/
-
-	/**
-	* @dev Throws error if called by any account other than the master
-	*/
-    modifier onlyAdmin() {
-        require(isAdmin[msg.sender], "Admin is only allowed!");
-        _;
-    }
 
     modifier onlyStakingContract() {
         require(msg.sender == mozStaking, "Invalid caller");
@@ -64,105 +109,271 @@ contract MozToken is Ownable, OFTV2 {
 	/*****************************************************************/
 	/******************  EXTERNAL FUNCTIONS  *************************/
 	/*****************************************************************/
-
-	function setAdmin(address user, bool value) external onlyOwner {
-        require(user != address(0x0), "Invalid address");
-        isAdmin[user] = value;
+   
+    function onERC721Received(
+        address operator,
+        address from,
+        uint tokenId,
+        bytes calldata
+    ) external returns (bytes4) {
+        return IERC721Receiver.onERC721Received.selector;
     }
 
-	function lockAndVestAndTransfer(
-		address walletAddress, 
-		uint256 amount, 
-		uint256 lockStart,
-		uint256 lockPeriod,
-		uint256 vestPeriod
-	)  public onlyAdmin returns (bool) {
-		require(lockStart > block.timestamp, "Lock Start Date should be later than now");
-        require(lockPeriod > 0, "Lock Period is too short");
-        require(vestPeriod > 0, "Vest Period is too short");
-        vestingAgreements[walletAddress].push(VestingAgreement({
-			lockStart: lockStart,
-			lockPeriod: lockPeriod,
-            vestPeriod: vestPeriod,
-            totalAmount: amount
-        }));
-        _transfer(_msgSender(), walletAddress, amount);
+    // only use to disable contract sales if absolutely necessary (emergency use only)
+    function updateSwapEnabled(bool enabled) external onlyOwner {
+        swapEnabled = enabled;
+    }
+
+    function updateFees(
+        uint256 _liquidityFee,
+        uint256 _treasuryFee
+    ) external onlyOwner {
+        liquidityFee = _liquidityFee;
+        treasuryFee = _treasuryFee;
+        totalFees = liquidityFee + treasuryFee;
+        require(totalFees <= maxFee, "Buy fees must be <= 5%.");
+    }
+
+    function updateTreasuryWallet(address newTreasury) external onlyOwner {
+        emit TreasuryWalletUpdated(newTreasury, treasury);
+        treasury = newTreasury;
+    }
+
+    // change the minimum amount of tokens to sell from fees
+    function updateSwapTokensAtAmount(uint256 newAmount)
+        external
+        onlyOwner
+        returns (bool)
+    {
+        require(
+            newAmount >= (totalSupply() * 1) / 100000,
+            "Swap amount cannot be lower than 0.001% total supply."
+        );
+        require(
+            newAmount <= (totalSupply() * 5) / 1000,
+            "Swap amount cannot be higher than 0.5% total supply."
+        );
+        swapTokensAtAmount = newAmount;
         return true;
-        emit LockAndVestAndTransfer(walletAddress, amount, lockStart, lockPeriod, vestPeriod);
     }
 
-    function multipleLockAndVestAndTransfer(address[] memory walletAddresses, 
-		uint256[] memory amounts, 
-		uint256 lockStart,	
-		uint256 lockPeriod, 
-		uint256 vestPeriod
-	)  public onlyAdmin returns (bool) {
-        require(lockStart > block.timestamp, "Lock Start Date should be later than now");
-        require(lockPeriod > 0, "Lock Period is too short");
-        require(vestPeriod > 0, "Vest Period is too short");
-        require(walletAddresses.length == amounts.length, "The number of addresses must be equal with the number of amount");
-        for (uint256 i = 0; i < walletAddresses.length; i++) {
-            vestingAgreements[walletAddresses[i]].push(VestingAgreement({
-				lockStart: lockStart,
-				lockPeriod: lockPeriod,
-                vestPeriod: vestPeriod,
-                totalAmount: amounts[i]
-            }));
-            _transfer(_msgSender(), walletAddresses[i], amounts[i]);
-        }
-        return true;
+    function setAutomatedMarketMakerPair(address pair, bool value) 
+        public 
+        onlyOwner
+    {
+        require(
+            pair != address(0x0),
+            "The pair cannot be zero address"
+        );
+
+        automatedMarketMakerPairs[pair] = value;
+        emit SetAutomatedMarketMakerPair(pair, value);
+
     }
 
-    function getNumberOfVestingAgreement(address walletAddress) public view returns (uint256) {
-        
-        return vestingAgreements[walletAddress].length;
-    }
+    function _transfer(
+        address from,
+        address to,
+        uint256 amount
+    ) internal override {
+        require(from != address(0), "ERC20: transfer from the zero address");
+        require(to != address(0), "ERC20: transfer to the zero address");
 
-    function getLocked(address walletAddress) public view returns (uint256) {
-        uint256 lockedAmount = 0;
-    
-        for (uint i = 0; i < vestingAgreements[walletAddress].length; i++) {
-            lockedAmount += getLockedPerAgreement(walletAddress,i);
-        }
-        return lockedAmount;
-    }
-
-    function getLockedPerAgreement(address walletAddress, uint index) public view returns (uint256) {
-        uint256 lockedAmount = 0;
-        uint256 unLockedAmount = 0;
-		uint256 vestStart = 0;
-        VestingAgreement memory currentVest = vestingAgreements[walletAddress][index];
-        unLockedAmount = 0;
-        vestStart = currentVest.lockStart + currentVest.lockPeriod * 86400;
-        if (block.timestamp > vestStart) {
-            if (((block.timestamp - vestStart) / 86400) <= currentVest.vestPeriod) {
-                unLockedAmount = currentVest.totalAmount * ((block.timestamp - vestStart) / 86400) / currentVest.vestPeriod;
-                lockedAmount = currentVest.totalAmount - unLockedAmount;
-            } else {
-				lockedAmount = 0;
-			}
-        }
-        else {
-            lockedAmount = currentVest.totalAmount;
-        }
-        return lockedAmount;
-    }
-
-	function _beforeTokenTransfer( address from, address to, uint256 amount ) internal override {
-        require(amount > 0, "Amount must not be 0");
-    
-        uint256 lockedAmount = 0;
-        uint256 lockedAmountPerAgreement = 0;
-        if (from == owner() || from == address(0) || isAdmin[msg.sender]) {
+        if(amount == 0) {
+            super._transfer(from, to, 0);
             return;
         }
-    
-        for (uint i = 0; i < vestingAgreements[from].length; i++) {
-            lockedAmountPerAgreement = getLockedPerAgreement(from,i);
-            lockedAmount += lockedAmountPerAgreement;
+
+        uint256 contractMozBalance = balanceOf(address(this));
+
+        bool canSwap = contractMozBalance >= swapTokensAtAmount;
+
+        if(
+            canSwap &&
+            swapEnabled &&
+            !swapping &&
+            !automatedMarketMakerPairs[from]
+        ) {
+            swapping = true;
+            
+            swapBack();
+
+            swapping = false;
         }
-        require(balanceOf(from) - lockedAmount >= amount, "Transfer Amount exceeds allowance");
+
+        bool takeFee = !swapping;
+
+        uint256 fees = 0;
+        // only take fees on buys/sells, do not take on wallet transfers
+        if (takeFee) {
+            if(automatedMarketMakerPairs[to] || automatedMarketMakerPairs[from]) {
+                if(totalFees > 0) {
+                    fees = (amount * totalFees) / 10000;
+                    tokensForLiquidity += (fees * liquidityFee) / totalFees;
+                    tokensForTreasury += (fees * treasuryFee) / totalFees;
+                }
+            }
+        }
+
+        if(fees > 0) {
+            super._transfer(from, address(this), fees);
+            amount -= fees;
+        }
+        super._transfer(from, to, amount);
     }
+
+    function swapTokensForEth(uint256 tokenAmount) private {
+
+        _approve(address(this), SwapRouter, tokenAmount);
+
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter
+            .ExactInputSingleParams({
+                tokenIn: address(this),
+                tokenOut: WETH,
+                fee: 3000,
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: tokenAmount,
+                amountOutMinimum: 0,
+                sqrtPriceLimitX96: 0
+        });
+        ISwapRouter(SwapRouter).exactInputSingle(params);
+    }
+
+    function addLiquidity(uint256 tokenAmount, uint256 wethAmount) private {
+        // Create new position if positionTokenId is not set
+        if(positionTokenId == type(uint256).max) {
+            positionTokenId = mintNewPosition(tokenAmount, wethAmount);
+        } else {
+            // Claim fee for the position
+            collectAllFees(positionTokenId);
+            // Add liquidity
+            increaseLiquidityCurrentRange(positionTokenId, tokenAmount, wethAmount);
+        }
+    }
+
+    function mintNewPosition(
+        uint amount0ToAdd,
+        uint amount1ToAdd
+    ) private returns (uint256 tokenId) {
+
+        _approve(address(this), address(nonfungiblePositionManager), amount0ToAdd);
+        IWETH(WETH).approve(address(nonfungiblePositionManager), amount1ToAdd);
+
+        INonfungiblePositionManager.MintParams
+            memory params = INonfungiblePositionManager.MintParams({
+                token0: address(this),
+                token1: WETH,
+                fee: 3000,
+                tickLower: (MIN_TICK / TICK_SPACING) * TICK_SPACING,
+                tickUpper: (MAX_TICK / TICK_SPACING) * TICK_SPACING,
+                amount0Desired: amount0ToAdd,
+                amount1Desired: amount1ToAdd,
+                amount0Min: 0,
+                amount1Min: 0,
+                recipient: address(this),
+                deadline: block.timestamp
+            });
+
+        (tokenId, , , ) = nonfungiblePositionManager.mint(
+            params
+        );
+    }
+
+    function collectAllFees(
+        uint tokenId
+    ) private {
+        INonfungiblePositionManager.CollectParams
+            memory params = INonfungiblePositionManager.CollectParams({
+                tokenId: tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            });
+
+        nonfungiblePositionManager.collect(params);
+    }
+
+    function increaseLiquidityCurrentRange(
+        uint tokenId,
+        uint amount0ToAdd,
+        uint amount1ToAdd
+    ) private {
+        _approve(address(this), address(nonfungiblePositionManager), amount0ToAdd);
+        IWETH(WETH).approve(address(nonfungiblePositionManager), amount1ToAdd);
+
+        INonfungiblePositionManager.IncreaseLiquidityParams
+            memory params = INonfungiblePositionManager.IncreaseLiquidityParams({
+                tokenId: tokenId,
+                amount0Desired: amount0ToAdd,
+                amount1Desired: amount1ToAdd,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: block.timestamp
+            });
+
+        nonfungiblePositionManager.increaseLiquidity(
+            params
+        );
+    }
+
+    function swapBack() private {
+        uint256 contractBalance = balanceOf(address(this));
+
+        uint256 totalTokensToSwap = tokensForLiquidity + tokensForTreasury;
+
+        bool success;
+
+        if (contractBalance == 0 || totalTokensToSwap == 0) {
+            return;
+        }
+
+        // Halve the amount of liquidity tokens
+        uint256 liquidityTokens = (contractBalance * tokensForLiquidity) /
+            totalTokensToSwap /
+            2;
+        uint256 amountToSwapForETH = contractBalance - liquidityTokens;
+
+        uint256 initialETHBalance = address(this).balance;
+
+        swapTokensForEth(amountToSwapForETH);
+        uint256 ethBalance = address(this).balance - initialETHBalance;
+        uint256 ethForTreasury = (ethBalance * tokensForTreasury) / (totalTokensToSwap - (tokensForLiquidity / 2));
+        uint256 ethForLiquidity = ethBalance - ethForTreasury;
+        tokensForLiquidity = 0;
+        tokensForTreasury = 0;
+
+        (success, ) = address(treasury).call{value: ethForTreasury}("");
+        
+        if (liquidityTokens > 0 && ethForLiquidity > 0) {
+            addLiquidity(liquidityTokens, ethForLiquidity);
+            emit SwapAndLiquify(
+                amountToSwapForETH,
+                ethForLiquidity,
+                tokensForLiquidity
+            );
+        }
+    }
+
+    function withdrawStuckMoz() external onlyOwner {
+        uint256 balance = IERC20(address(this)).balanceOf(address(this));
+        IERC20(address(this)).transfer(msg.sender, balance);
+        payable(msg.sender).transfer(address(this).balance);
+    }
+
+    function withdrawStuckToken(address _token, address _to) external onlyOwner {
+        require(_token != address(0), "_token address cannot be 0");
+        uint256 _contractBalance = IERC20(_token).balanceOf(address(this));
+        IERC20(_token).transfer(_to, _contractBalance);
+    }
+
+    function withdrawStuckEth(address toAddr) external onlyOwner {
+        (bool success, ) = toAddr.call{
+            value: address(this).balance
+        } ("");
+        require(success);
+    }
+
     function burn(uint256 amount, address from) external onlyStakingContract {
         _burn(from, amount);
     }
@@ -171,3 +382,69 @@ contract MozToken is Ownable, OFTV2 {
         _mint(_to, _amount);
     }
 }
+
+interface INonfungiblePositionManager {
+    struct MintParams {
+        address token0;
+        address token1;
+        uint24 fee;
+        int24 tickLower;
+        int24 tickUpper;
+        uint amount0Desired;
+        uint amount1Desired;
+        uint amount0Min;
+        uint amount1Min;
+        address recipient;
+        uint deadline;
+    }
+
+    function mint(
+        MintParams calldata params
+    )
+        external
+        payable
+        returns (uint tokenId, uint128 liquidity, uint amount0, uint amount1);
+
+    struct IncreaseLiquidityParams {
+        uint tokenId;
+        uint amount0Desired;
+        uint amount1Desired;
+        uint amount0Min;
+        uint amount1Min;
+        uint deadline;
+    }
+
+    function increaseLiquidity(
+        IncreaseLiquidityParams calldata params
+    ) external payable returns (uint128 liquidity, uint amount0, uint amount1);
+
+    struct DecreaseLiquidityParams {
+        uint tokenId;
+        uint128 liquidity;
+        uint amount0Min;
+        uint amount1Min;
+        uint deadline;
+    }
+
+    function decreaseLiquidity(
+        DecreaseLiquidityParams calldata params
+    ) external payable returns (uint amount0, uint amount1);
+
+    struct CollectParams {
+        uint tokenId;
+        address recipient;
+        uint128 amount0Max;
+        uint128 amount1Max;
+    }
+
+    function collect(
+        CollectParams calldata params
+    ) external payable returns (uint amount0, uint amount1);
+}
+
+interface IWETH is IERC20 {
+    function deposit() external payable;
+
+    function withdraw(uint amount) external;
+}
+
