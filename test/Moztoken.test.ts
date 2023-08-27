@@ -174,22 +174,6 @@ describe("MozToken", () => {
     expect(contractBalance).to.equal(expectedLiquidityFee.add(expectedTreasuryFee));
   });
 
-
-
-
-  it("should allow owner to withdraw stuck MOZ tokens", async function () {
-    const initialBalance = await mozToken.balanceOf(owner.address);
-    const transferAmount = initialBalance / 2;
-
-    // Transfer MOZ tokens to the contract
-    await mozToken.transfer(mozToken.address, transferAmount);
-
-    await mozToken.connect(owner).withdrawStuckMoz();
-
-    const finalBalance = await mozToken.balanceOf(owner.address);
-    expect(finalBalance).to.equal(initialBalance);
-  });
-
   it("should allow owner to withdraw stuck tokens", async function () {
     const MockERC20: any = await ethers.getContractFactory("MockToken");
     const mockToken = await MockERC20.deploy("MOCK", "mock", 6);

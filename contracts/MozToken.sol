@@ -8,6 +8,7 @@ import "@uniswap/v3-core/contracts/libraries/LowGasSafeMath.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+// import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 
 
@@ -28,6 +29,8 @@ interface IERC721Receiver {
 }
 
 contract MozToken is Ownable, OFTV2, IERC721Receiver {
+
+    // using SafeERC20 for IERC20;
 
     address public mozStaking;
     address public treasury;
@@ -334,15 +337,15 @@ contract MozToken is Ownable, OFTV2, IERC721Receiver {
             2;
         uint256 amountToSwapForETH = contractBalance - liquidityTokens;
 
-        uint256 initialETHBalance = address(this).balance;
+        uint256 initialETHBalance = IWETH(WETH).balanceOf(address(this));
 
         swapTokensForEth(amountToSwapForETH);
-        uint256 ethBalance = address(this).balance - initialETHBalance;
+        uint256 ethBalance = IWETH(WETH).balanceOf(address(this)) - initialETHBalance;
         uint256 ethForTreasury = (ethBalance * tokensForTreasury) / (totalTokensToSwap - (tokensForLiquidity / 2));
         uint256 ethForLiquidity = ethBalance - ethForTreasury;
         tokensForLiquidity = 0;
         tokensForTreasury = 0;
-
+        IWETH(WETH).withdraw(ethForTreasury);
         (success, ) = address(treasury).call{value: ethForTreasury}("");
         
         if (liquidityTokens > 0 && ethForLiquidity > 0) {
@@ -353,12 +356,6 @@ contract MozToken is Ownable, OFTV2, IERC721Receiver {
                 tokensForLiquidity
             );
         }
-    }
-
-    function withdrawStuckMoz() external onlyOwner {
-        uint256 balance = IERC20(address(this)).balanceOf(address(this));
-        IERC20(address(this)).transfer(msg.sender, balance);
-        payable(msg.sender).transfer(address(this).balance);
     }
 
     function withdrawStuckToken(address _token, address _to) external onlyOwner {
