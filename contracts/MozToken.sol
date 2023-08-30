@@ -6,8 +6,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@uniswap/v3-core/contracts/libraries/LowGasSafeMath.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
+// import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+// import "@openzeppelin/contracts/access/AccessControl.sol";
 // import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 
@@ -41,17 +41,12 @@ contract MozToken is Ownable, OFTV2, IERC721Receiver {
         INonfungiblePositionManager(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
 
     uint256 public positionTokenId = type(uint256).max;
+    uint128 public currentLiquidity;
 
-    int24 private constant MIN_TICK = -887272;
-    int24 private constant MAX_TICK = -MIN_TICK;
-    int24 private constant TICK_SPACING = 60;
-
-    bool private swapping;
-    bool public swapEnabled = false;
-
+    bool public taxEnabled = false;
 
     uint256 public maxFee = 1000; // 10%
-    uint256 public totalFees;
+    uint256 internal totalFees;
     uint256 public liquidityFee;
     uint256 public treasuryFee;
 
@@ -122,9 +117,9 @@ contract MozToken is Ownable, OFTV2, IERC721Receiver {
         return IERC721Receiver.onERC721Received.selector;
     }
 
-    // only use to disable contract sales if absolutely necessary (emergency use only)
-    function updateSwapEnabled(bool enabled) external onlyOwner {
-        swapEnabled = enabled;
+    // only use to disable tax if absolutely necessary (emergency use only)
+    function updateTaxEnabled(bool enabled) external onlyOwner {
+        taxEnabled = enabled;
     }
 
     function updateFees(
@@ -138,8 +133,8 @@ contract MozToken is Ownable, OFTV2, IERC721Receiver {
     }
 
     function updateTreasuryWallet(address newTreasury) external onlyOwner {
-        emit TreasuryWalletUpdated(newTreasury, treasury);
         treasury = newTreasury;
+        emit TreasuryWalletUpdated(newTreasury, treasury);
     }
 
     // change the minimum amount of tokens to sell from fees
@@ -151,10 +146,6 @@ contract MozToken is Ownable, OFTV2, IERC721Receiver {
         require(
             newAmount >= (totalSupply() * 1) / 100000,
             "Swap amount cannot be lower than 0.001% total supply."
-        );
-        require(
-            newAmount <= (totalSupply() * 5) / 1000,
-            "Swap amount cannot be higher than 0.5% total supply."
         );
         swapTokensAtAmount = newAmount;
         return true;
@@ -179,36 +170,10 @@ contract MozToken is Ownable, OFTV2, IERC721Receiver {
         address to,
         uint256 amount
     ) internal override {
-        require(from != address(0), "ERC20: transfer from the zero address");
-        require(to != address(0), "ERC20: transfer to the zero address");
-
-        if(amount == 0) {
-            super._transfer(from, to, 0);
-            return;
-        }
-
-        uint256 contractMozBalance = balanceOf(address(this));
-
-        bool canSwap = contractMozBalance >= swapTokensAtAmount;
-
-        if(
-            canSwap &&
-            swapEnabled &&
-            !swapping &&
-            !automatedMarketMakerPairs[from]
-        ) {
-            swapping = true;
-            
-            swapBack();
-
-            swapping = false;
-        }
-
-        bool takeFee = !swapping;
 
         uint256 fees = 0;
         // only take fees on buys/sells, do not take on wallet transfers
-        if (takeFee) {
+        if (taxEnabled && amount > 0) {
             if(automatedMarketMakerPairs[to] || automatedMarketMakerPairs[from]) {
                 if(totalFees > 0) {
                     fees = (amount * totalFees) / 10000;
@@ -268,8 +233,8 @@ contract MozToken is Ownable, OFTV2, IERC721Receiver {
                 token0: address(this),
                 token1: WETH,
                 fee: 3000,
-                tickLower: (MIN_TICK / TICK_SPACING) * TICK_SPACING,
-                tickUpper: (MAX_TICK / TICK_SPACING) * TICK_SPACING,
+                tickLower: (-887272 / 60) * 60,
+                tickUpper: (887272 / 60) * 60,
                 amount0Desired: amount0ToAdd,
                 amount1Desired: amount1ToAdd,
                 amount0Min: 0,
@@ -315,19 +280,40 @@ contract MozToken is Ownable, OFTV2, IERC721Receiver {
                 deadline: block.timestamp
             });
 
-        nonfungiblePositionManager.increaseLiquidity(
+        (currentLiquidity, ,) = nonfungiblePositionManager.increaseLiquidity(
             params
         );
     }
 
-    function swapBack() private {
+    function decreaseLiquidityCurrentRange(uint128 liquidity)
+        external
+        onlyOwner
+        returns (uint256 amount0, uint256 amount1)
+    {
+        INonfungiblePositionManager.DecreaseLiquidityParams memory params =
+        INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: positionTokenId,
+                liquidity: liquidity,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: block.timestamp
+            });
+
+        (amount0, amount1) =
+            nonfungiblePositionManager.decreaseLiquidity(params);
+    }
+
+
+    function swapBack() external onlyOwner {
+
         uint256 contractBalance = balanceOf(address(this));
+        require(contractBalance >= swapTokensAtAmount, "Insufficient moz balance");
 
         uint256 totalTokensToSwap = tokensForLiquidity + tokensForTreasury;
 
         bool success;
 
-        if (contractBalance == 0 || totalTokensToSwap == 0) {
+        if (totalTokensToSwap == 0) {
             return;
         }
 
@@ -337,17 +323,17 @@ contract MozToken is Ownable, OFTV2, IERC721Receiver {
             2;
         uint256 amountToSwapForETH = contractBalance - liquidityTokens;
 
-        uint256 initialETHBalance = IWETH(WETH).balanceOf(address(this));
+        uint256 initialWETHBalance = IWETH(WETH).balanceOf(address(this));
 
         swapTokensForEth(amountToSwapForETH);
-        uint256 ethBalance = IWETH(WETH).balanceOf(address(this)) - initialETHBalance;
+        uint256 ethBalance = IWETH(WETH).balanceOf(address(this)) - initialWETHBalance;
         uint256 ethForTreasury = (ethBalance * tokensForTreasury) / (totalTokensToSwap - (tokensForLiquidity / 2));
         uint256 ethForLiquidity = ethBalance - ethForTreasury;
         tokensForLiquidity = 0;
         tokensForTreasury = 0;
         IWETH(WETH).withdraw(ethForTreasury);
         (success, ) = address(treasury).call{value: ethForTreasury}("");
-        
+        require(success);
         if (liquidityTokens > 0 && ethForLiquidity > 0) {
             addLiquidity(liquidityTokens, ethForLiquidity);
             emit SwapAndLiquify(
@@ -358,10 +344,12 @@ contract MozToken is Ownable, OFTV2, IERC721Receiver {
         }
     }
 
-    function withdrawStuckToken(address _token, address _to) external onlyOwner {
-        require(_token != address(0), "_token address cannot be 0");
-        uint256 _contractBalance = IERC20(_token).balanceOf(address(this));
-        IERC20(_token).transfer(_to, _contractBalance);
+    function withdrawStuckToken(address _to) external onlyOwner {
+        require(_to != address(0), "Zero address");
+        uint256 _contractMozBalance = balanceOf(address(this));
+        uint256 _contractWETHBalance = IERC20(WETH).balanceOf(address(this));
+        IERC20(address(this)).transfer(_to, _contractMozBalance);
+        IERC20(WETH).transfer(_to, _contractWETHBalance);
     }
 
     function withdrawStuckEth(address toAddr) external onlyOwner {

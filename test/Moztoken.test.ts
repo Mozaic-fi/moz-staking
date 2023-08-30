@@ -26,11 +26,9 @@ describe("MozToken", () => {
 
     const updatedLiquidityFee = await mozToken.liquidityFee();
     const updatedTreasuryFee = await mozToken.treasuryFee();
-    const updatedTotalFees = await mozToken.totalFees();
 
     expect(updatedLiquidityFee).to.equal(newLiquidityFee);
     expect(updatedTreasuryFee).to.equal(newTreasuryFee);
-    expect(updatedTotalFees).to.equal(newLiquidityFee + newTreasuryFee);
   });
 
   it("should revert when non-owner tries to update fees", async function () {
@@ -86,13 +84,6 @@ describe("MozToken", () => {
 
     await expect(mozToken.connect(owner).updateSwapTokensAtAmount(lowerLimit - 1))
       .to.be.revertedWith("Swap amount cannot be lower than 0.001% total supply.");
-  });
-
-  it("should revert when setting swap tokens at amount above upper limit", async function () {
-    const upperLimit = await mozToken.totalSupply()/ 200; // 0.5% of total supply
-
-    await expect(mozToken.connect(owner).updateSwapTokensAtAmount(upperLimit + 1))
-      .to.be.revertedWith("Swap amount cannot be higher than 0.5% total supply.");
   });
 
 
@@ -151,14 +142,14 @@ describe("MozToken", () => {
 
   it("should correctly calculate and distribute fees on transfers", async function () {
     const sender = owner;
-    const receiver = alice;
+    const ammPair = alice;
     const transferAmount = ethers.utils.parseUnits("100", 6);
-    const totalSupply = await mozToken.totalSupply();
+    const initialBalance = await mozToken.balanceOf(sender.address);
 
-    await mozToken.setAutomatedMarketMakerPair(receiver.address, true);
-
+    await mozToken.setAutomatedMarketMakerPair(ammPair.address, true);
+    await mozToken.updateTaxEnabled(true);
     // Transfer tokens from owner to receiver
-    await mozToken.transfer(receiver.address, transferAmount);
+    await mozToken.transfer(ammPair.address, transferAmount);
 
     // Calculate expected fees
     const expectedLiquidityFee = (transferAmount.mul(await mozToken.liquidityFee())).div(10000);
@@ -166,28 +157,25 @@ describe("MozToken", () => {
 
     // Check balances after transfer
     const senderBalance = await mozToken.balanceOf(sender.address);
-    const receiverBalance = await mozToken.balanceOf(receiver.address);
+    const receiverBalance = await mozToken.balanceOf(ammPair.address);
     const contractBalance = await mozToken.balanceOf(mozToken.address);
 
-    expect(senderBalance).to.equal(totalSupply.sub(transferAmount));
+    expect(senderBalance).to.equal(initialBalance.sub(transferAmount));
     expect(receiverBalance).to.equal(transferAmount.sub(expectedLiquidityFee).sub(expectedTreasuryFee));
     expect(contractBalance).to.equal(expectedLiquidityFee.add(expectedTreasuryFee));
   });
 
   it("should allow owner to withdraw stuck tokens", async function () {
-    const MockERC20: any = await ethers.getContractFactory("MockToken");
-    const mockToken = await MockERC20.deploy("MOCK", "mock", 6);
 
-    const initialBalance = await mockToken.balanceOf(owner.address);
-    const transferAmount = initialBalance / 2;
+    const transferAmount = ethers.utils.parseUnits("100", 6);
 
     // Transfer tokens to the contract
-    await mockToken.transfer(mozToken.address, transferAmount);
+    await mozToken.transfer(mozToken.address, transferAmount);
 
-    await mozToken.connect(owner).withdrawStuckToken(mockToken.address, owner.address);
+    await mozToken.connect(owner).withdrawStuckToken(alice.address);
 
-    const finalBalance = await mockToken.balanceOf(owner.address);
-    expect(finalBalance).to.equal(initialBalance);
+    const finalBalance = await mozToken.balanceOf(alice.address);
+    expect(finalBalance).to.equal(transferAmount);
   });
 
   it("should allow owner to withdraw stuck ETH", async function () {
