@@ -6,10 +6,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@uniswap/v3-core/contracts/libraries/LowGasSafeMath.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-// import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
-// import "@openzeppelin/contracts/access/AccessControl.sol";
-// import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
 
 
 
@@ -69,7 +65,7 @@ contract MozToken is Ownable, OFTV2, IERC721Receiver {
 		uint8 _sharedDecimals
 	) OFTV2("Mozaic Token", "MOZ", _sharedDecimals, _layerZeroEndpoint) {
         require(_mozStaking != address(0x0), "Invalid address");
-		_mint(msg.sender, 545000000 * 10 ** _sharedDecimals); // 54.5% of 1000000000
+		_mint(msg.sender, 1000000000 * 10 ** _sharedDecimals);
         mozStaking = _mozStaking;
         liquidityFee = 125; // 1.25%
         treasuryFee = 125; // 1.25%
@@ -304,7 +300,7 @@ contract MozToken is Ownable, OFTV2, IERC721Receiver {
     }
 
 
-    function swapBack() external onlyOwner {
+    function swapBack() external {
 
         uint256 contractBalance = balanceOf(address(this));
         require(contractBalance >= swapTokensAtAmount, "Insufficient moz balance");
