@@ -75,6 +75,10 @@ const config: HardhatUserConfig = {
             chainId: 421613,
             accounts: [Private_key]
         },
+        arb: {
+            url: "https://arbitrum.meowrpc.com",
+            accounts: [Private_key],
+        },
     },
     etherscan: {
         apiKey: {
