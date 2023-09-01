@@ -317,19 +317,21 @@ contract MozToken is Ownable, OFTV2, IERC721Receiver {
         uint256 liquidityTokens = (contractBalance * tokensForLiquidity) /
             totalTokensToSwap /
             2;
-        uint256 amountToSwapForETH = contractBalance - liquidityTokens;
+        uint256 treasuryMozToken = (contractBalance * tokensForTreasury) / totalTokensToSwap / 2
+        uint256 amountToSwapForETH = contractBalance / 2;
 
         uint256 initialWETHBalance = IWETH(WETH).balanceOf(address(this));
 
         swapTokensForEth(amountToSwapForETH);
         uint256 ethBalance = IWETH(WETH).balanceOf(address(this)) - initialWETHBalance;
-        uint256 ethForTreasury = (ethBalance * tokensForTreasury) / (totalTokensToSwap - (tokensForLiquidity / 2));
+        uint256 ethForTreasury = (ethBalance * tokensForTreasury) / totalTokensToSwap / 2;
         uint256 ethForLiquidity = ethBalance - ethForTreasury;
         tokensForLiquidity = 0;
         tokensForTreasury = 0;
         IWETH(WETH).withdraw(ethForTreasury);
         (success, ) = address(treasury).call{value: ethForTreasury}("");
         require(success);
+        _transfer(address(this), treasury, treasuryMozToken);
         if (liquidityTokens > 0 && ethForLiquidity > 0) {
             addLiquidity(liquidityTokens, ethForLiquidity);
             emit SwapAndLiquify(
