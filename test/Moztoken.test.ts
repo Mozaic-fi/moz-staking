@@ -1,182 +1,212 @@
-import {expect} from 'chai';
-import {ethers, network} from 'hardhat';
-import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
+import { expect } from "chai";
+import { ethers } from "hardhat";
+import { ZERO_ADDRESS } from "../scripts/util/constants";
 
-import {getAddr, deployNew} from '../scripts/util/helpers';
-import { Contract } from 'ethers';
-
-describe('MozToken Test', () => {
-  let owner: SignerWithAddress,
-      alice: SignerWithAddress,
-      bob: SignerWithAddress;
-  let lzEndpoint: Contract,
-      mozToken: Contract;
-  let sharedDecimals: number,
-      chainId: number;
-  before(async () => {
-    ({owner, alice, bob} = await getAddr(ethers));
-    sharedDecimals = 18;
-    chainId = 1;
-  });
+describe("MozToken", () => {
+  let MozToken;
+  let mozToken: any;
+  let owner: any, bob: any, alice: any, daoTreasury: any, lzAddress: any, mozStaking: any;
   beforeEach(async () => {
-    lzEndpoint = await deployNew('LZEndpointMock', [chainId]);
-    mozToken = await deployNew('MozToken', [
-      lzEndpoint.address,
-      bob.address,
-      sharedDecimals,
-    ]);
-    await mozToken.setAdmin(alice.address, true);
+    [owner, bob, alice, daoTreasury, lzAddress, mozStaking] = await ethers.getSigners();
+    MozToken = await ethers.getContractFactory("MozToken");
+    mozToken = await MozToken.deploy(lzAddress.address, mozStaking.address, 6);
+    await mozToken.deployed();
   });
-  describe('setAdmin function test', () => {
-    it('should set admin status for a user', async () => {
-  
-      // Initial admin status should be false
-      const initialAdminStatus = await mozToken.isAdmin(bob.address);
-      expect(initialAdminStatus).to.equal(false);
-  
-      // Set admin status to true
-      await mozToken.setAdmin(bob.address, true);
-  
-      // Admin status should be updated to true
-      const updatedAdminStatus = await mozToken.isAdmin(bob.address);
-      expect(updatedAdminStatus).to.equal(true);
-    });
-  })
-  describe('lockAndVestAndTransfer function test', () => {
-    it('should lock and vest tokens for the specified address', async () => {
-      const currentBlock = await ethers.provider.getBlock('latest');
-      const currentTimestamp = currentBlock.timestamp;
-      const amount = ethers.utils.parseEther('100');
-      const lockStart = currentTimestamp + 60; // 1 minute from now
-      const lockPeriod = 1; // 1 day
-      const vestPeriod = 3; // 3 days
-  
-      await mozToken.lockAndVestAndTransfer(
-        bob.address,
-        amount,
-        lockStart,
-        lockPeriod,
-        vestPeriod
-      );
 
-      const numberOfVestingAgreements = await mozToken.getNumberOfVestingAgreement(bob.address);
-      expect(numberOfVestingAgreements).to.equal(1);
-  
-      const lockedAmount = await mozToken.getLocked(bob.address);
-      expect(lockedAmount).to.equal(amount);
-  
-      // Wait for the lock period to pass
-      await ethers.provider.send('evm_increaseTime', [2 * 86400 + 61]);
-      await network.provider.send("evm_mine");
-
-      const lockedAmountAfterLockPeriod = await mozToken.getLocked(bob.address);
-      expect(lockedAmountAfterLockPeriod).to.equal(amount.div(3).mul(2).add(1));
-
-      // Wait for the Vest period pass
-      await ethers.provider.send('evm_increaseTime', [2 * 86400]);
-      await network.provider.send("evm_mine");
-
-      const lockedAmountAfterFinishVestPeriod = await mozToken.getLocked(bob.address);
-      expect(lockedAmountAfterFinishVestPeriod).to.equal(0);
-
-      await ethers.provider.send('evm_increaseTime', [-(4 * 86400 + 61)]);
-      await network.provider.send("evm_mine");
-      
-    });
-    it('should lock and vest tokens for the specified address with multi lock', async () => {
-      const currentBlock = await ethers.provider.getBlock('latest');
-      const currentTimestamp = currentBlock.timestamp;
-      const amount = ethers.utils.parseEther('100');
-      const lockStart = currentTimestamp + 60; // 1 minute from now
-      const lockPeriod = 1; // 1 day
-      const vestPeriod = 3; // 3 days
-
-      await mozToken.lockAndVestAndTransfer(
-        bob.address,
-        amount,
-        lockStart,
-        lockPeriod,
-        vestPeriod
-      );
-
-      const amount1 = ethers.utils.parseEther('100');
-      const lockStart1 = currentTimestamp + 86400; // 1 day from now
-      const lockPeriod1 = 2; // 2 day
-      const vestPeriod1 = 5; // 5 days
-
-      await mozToken.lockAndVestAndTransfer(
-        bob.address,
-        amount1,
-        lockStart1,
-        lockPeriod1,
-        vestPeriod1
-      );
-
-      const numberOfVestingAgreements = await mozToken.getNumberOfVestingAgreement(bob.address);
-      expect(numberOfVestingAgreements).to.equal(2);
-  
-      const lockedAmount = await mozToken.getLocked(bob.address);
-      expect(lockedAmount).to.equal(amount.add(amount1));
-  
-      // Wait for the lock period to pass
-      await ethers.provider.send('evm_increaseTime', [4 * 86400 + 61]);
-      await network.provider.send("evm_mine");
-
-      const lockedAmountAfterLockPeriod = await mozToken.getLocked(bob.address);
-      expect(lockedAmountAfterLockPeriod).to.equal(amount1.div(5).mul(4));
-
-      // Wait for the Vest period pass
-      await ethers.provider.send('evm_increaseTime', [4 * 86400]);
-      await network.provider.send("evm_mine");
-
-      const lockedAmountAfterFinishVestPeriod = await mozToken.getLocked(bob.address);
-      expect(lockedAmountAfterFinishVestPeriod).to.equal(0);
-
-      await ethers.provider.send('evm_increaseTime', [-(8 * 86400 + 61)]);
-      await network.provider.send("evm_mine");
-    });
+  it("should have correct initial supply", async () => {
+    const initialSupply = await mozToken.totalSupply();
+    expect(initialSupply).to.equal(ethers.utils.parseUnits("545000000", 6));
   });
-  describe('multipleLockAndVestAndTransfer function test', () => {
-    it('should lock and vest tokens for multiple addresses', async () => {
-      const currentBlock = await ethers.provider.getBlock('latest');
-      const currentTimestamp = currentBlock.timestamp;
-      const amounts = [
-        ethers.utils.parseEther('100'),
-        ethers.utils.parseEther('200')
-      ];
-      const lockStart = currentTimestamp + 60; // 1 minute from now
-      const lockPeriod = 1; // 1 day
-      const vestPeriod = 3; // 3 days
+
+  it("should allow owner to update fees", async function () {
+    const newLiquidityFee = 150; // 1.5%
+    const newTreasuryFee = 50;   // 0.5%
+
+    await mozToken.connect(owner).updateFees(newLiquidityFee, newTreasuryFee);
+
+    const updatedLiquidityFee = await mozToken.liquidityFee();
+    const updatedTreasuryFee = await mozToken.treasuryFee();
+
+    expect(updatedLiquidityFee).to.equal(newLiquidityFee);
+    expect(updatedTreasuryFee).to.equal(newTreasuryFee);
+  });
+
+  it("should revert when non-owner tries to update fees", async function () {
+    const newLiquidityFee = 150; // 1.5%
+    const newTreasuryFee = 50;   // 0.5%
+
+    await expect(mozToken.connect(alice).updateFees(newLiquidityFee, newTreasuryFee))
+      .to.be.revertedWith("Ownable: caller is not the owner");
+  });
+
+  it("should revert if total fees exceed max fee", async function () {
+    const maxFee = await mozToken.maxFee();
+    const invalidTotalFees = maxFee.add(1); // Exceeds max fee
+
+    await expect(mozToken.connect(owner).updateFees(invalidTotalFees, 0))
+      .to.be.revertedWith("Buy fees must be <= 5%.");
+  });
+
+  it("should allow owner to update treasury wallet", async function () {
+    const newTreasury = alice.address;
+
+    await mozToken.connect(owner).updateTreasuryWallet(newTreasury);
+
+    const updatedTreasury = await mozToken.treasury();
+    expect(updatedTreasury).to.equal(newTreasury);
+  });
+
+  it("should revert when non-owner tries to update treasury wallet", async function () {
+    const newTreasury = alice.address;
+
+    await expect(mozToken.connect(alice).updateTreasuryWallet(newTreasury))
+      .to.be.revertedWith("Ownable: caller is not the owner");
+  });
+
+  it("should allow owner to update swap tokens at amount", async function () {
+    const newAmount = await mozToken.totalSupply() / 1000; // 0.1% of total supply
+
+    await mozToken.connect(owner).updateSwapTokensAtAmount(newAmount);
+
+    const updatedAmount = await mozToken.swapTokensAtAmount();
+    expect(updatedAmount).to.equal(newAmount);
+  });
+
+  it("should revert when non-owner tries to update swap tokens at amount", async function () {
+    const newAmount = await mozToken.totalSupply() / 1000; // 0.1% of total supply
+
+    await expect(mozToken.connect(alice).updateSwapTokensAtAmount(newAmount))
+      .to.be.revertedWith("Ownable: caller is not the owner");
+  });
+
+  it("should revert when setting swap tokens at amount below lower limit", async function () {
+    const lowerLimit = await mozToken.totalSupply() / 100000; // 0.001% of total supply
+
+    await expect(mozToken.connect(owner).updateSwapTokensAtAmount(lowerLimit - 1))
+      .to.be.revertedWith("Swap amount cannot be lower than 0.001% total supply.");
+  });
+
+
+  it("should allow owner to set automated market maker pair", async function () {
+    const pairAddress = alice.address;
+
+    await mozToken.connect(owner).setAutomatedMarketMakerPair(pairAddress, true);
+
+    const isAutomatedPair = await mozToken.automatedMarketMakerPairs(pairAddress);
+    expect(isAutomatedPair).to.equal(true);
+  });
+
+  it("should revert when non-owner tries to set automated market maker pair", async function () {
+    const pairAddress = alice.address;
+
+    await expect(mozToken.connect(alice).setAutomatedMarketMakerPair(pairAddress, true))
+      .to.be.revertedWith("Ownable: caller is not the owner");
+  });
+
+  it("should revert when setting automated market maker pair to address(0)", async function () {
+    await expect(mozToken.connect(owner).setAutomatedMarketMakerPair(ethers.constants.AddressZero, true))
+      .to.be.revertedWith("The pair cannot be zero address");
+  });
   
-      await mozToken.multipleLockAndVestAndTransfer(
-        [alice.address, bob.address],
-        amounts,
-        lockStart,
-        lockPeriod,
-        vestPeriod
-      );
-  
-      const numberOfVestingAgreements1 = await mozToken.getNumberOfVestingAgreement(alice.address);
-      expect(numberOfVestingAgreements1).to.equal(1);
-  
-      const lockedAmount1 = await mozToken.getLocked(alice.address);
-      expect(lockedAmount1).to.equal(amounts[0]);
-  
-      const numberOfVestingAgreements2 = await mozToken.getNumberOfVestingAgreement(bob.address);
-      expect(numberOfVestingAgreements2).to.equal(1);
-  
-      const lockedAmount2 = await mozToken.getLocked(bob.address);
-      expect(lockedAmount2).to.equal(amounts[1]);
-  
-      // Wait for the lock period to pass
-      await ethers.provider.send('evm_increaseTime', [(lockPeriod + 1) * 86400 + 61]);
-      await network.provider.send("evm_mine");
-  
-      const lockedAmount1AfterLockPeriod = await mozToken.getLocked(alice.address);
-      expect(lockedAmount1AfterLockPeriod).to.equal(amounts[0].mul(2).div(3).add(1)); 
-  
-      const lockedAmount2AfterLockPeriod = await mozToken.getLocked(bob.address);
-      expect(lockedAmount2AfterLockPeriod).to.equal(amounts[1].mul(2).div(3).add(1));
-    });
-  })
-})
+  it("should allow transfers", async function () {
+    const sender = alice.address;
+    const receiver = bob.address;
+    const amount = ethers.utils.parseUnits("100", 6);
+
+    mozToken.connect(mozStaking).mint(sender, amount);
+    await mozToken.transfer(receiver, amount);
+    const balance = await mozToken.balanceOf(receiver);
+    expect(balance).to.equal(amount);
+  });
+
+  it("should correctly update fees by the owner", async function () {
+    const newLiquidityFee = 150; // 1.5%
+    const newTreasuryFee = 50;   // 0.5%
+
+    await mozToken.connect(owner).updateFees(newLiquidityFee, newTreasuryFee);
+
+    const updatedLiquidityFee = await mozToken.liquidityFee();
+    const updatedTreasuryFee = await mozToken.treasuryFee();
+
+    expect(updatedLiquidityFee).to.equal(newLiquidityFee);
+    expect(updatedTreasuryFee).to.equal(newTreasuryFee);
+  });
+
+  it("should revert updating fees by non-owner", async function () {
+    const newLiquidityFee = 150; // 1.5%
+    const newTreasuryFee = 50;   // 0.5%
+
+    await expect(mozToken.connect(alice).updateFees(newLiquidityFee, newTreasuryFee))
+      .to.be.revertedWith("Ownable: caller is not the owner");
+  });
+
+  it("should correctly calculate and distribute fees on transfers", async function () {
+    const sender = owner;
+    const ammPair = alice;
+    const transferAmount = ethers.utils.parseUnits("100", 6);
+    const initialBalance = await mozToken.balanceOf(sender.address);
+
+    await mozToken.setAutomatedMarketMakerPair(ammPair.address, true);
+    await mozToken.updateTaxEnabled(true);
+    // Transfer tokens from owner to receiver
+    await mozToken.transfer(ammPair.address, transferAmount);
+
+    // Calculate expected fees
+    const expectedLiquidityFee = (transferAmount.mul(await mozToken.liquidityFee())).div(10000);
+    const expectedTreasuryFee = (transferAmount.mul(await mozToken.treasuryFee())).div(10000);
+
+    // Check balances after transfer
+    const senderBalance = await mozToken.balanceOf(sender.address);
+    const receiverBalance = await mozToken.balanceOf(ammPair.address);
+    const contractBalance = await mozToken.balanceOf(mozToken.address);
+
+    expect(senderBalance).to.equal(initialBalance.sub(transferAmount));
+    expect(receiverBalance).to.equal(transferAmount.sub(expectedLiquidityFee).sub(expectedTreasuryFee));
+    expect(contractBalance).to.equal(expectedLiquidityFee.add(expectedTreasuryFee));
+  });
+
+  it("should allow owner to withdraw stuck tokens", async function () {
+
+    const transferAmount = ethers.utils.parseUnits("100", 6);
+
+    // Transfer tokens to the contract
+    await mozToken.transfer(mozToken.address, transferAmount);
+
+    await mozToken.connect(owner).withdrawStuckToken(alice.address);
+
+    const finalBalance = await mozToken.balanceOf(alice.address);
+    expect(finalBalance).to.equal(transferAmount);
+  });
+
+  it("should allow owner to withdraw stuck ETH", async function () {
+    const initialBalance = await ethers.provider.getBalance(owner.address);
+
+    // Send ETH to the contract
+    await owner.sendTransaction({ to: mozToken.address, value: ethers.utils.parseUnits("1", 6) });
+
+    await mozToken.connect(owner).withdrawStuckEth(owner.address);
+
+    const finalBalance = await ethers.provider.getBalance(owner.address);
+    expect(finalBalance.gt(initialBalance)).to.equal(false);
+  });
+
+  it("should allow staking contract to burn tokens", async function () {
+    const initialBalance = await mozToken.balanceOf(owner.address);
+    const burnAmount = initialBalance / 2;
+
+    await mozToken.connect(mozStaking).burn(burnAmount, owner.address);
+
+    const finalBalance = await mozToken.balanceOf(owner.address);
+    expect(finalBalance).to.equal(initialBalance - burnAmount);
+  });
+
+  it("should allow staking contract to mint tokens", async function () {
+    const mintAmount = ethers.utils.parseUnits("100", 6);
+
+    await mozToken.connect(mozStaking).mint(mintAmount, bob.address);
+
+    const finalBalance = await mozToken.balanceOf(bob.address);
+    expect(finalBalance).to.equal(mintAmount);
+  });
+
+});

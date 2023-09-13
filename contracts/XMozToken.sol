@@ -23,7 +23,6 @@ contract XMozToken is Ownable, OFTV2 {
         _transferWhitelist.add(address(this));
         mozStaking = _mozStaking;
         multiSigAdmin = _multiSigAdmin;
-        _mint(msg.sender, 455000000 * 10 ** _sharedDecimals); // 45.5% of 1000000000
     }
 
     modifier onlyMultiSigAdmin() {

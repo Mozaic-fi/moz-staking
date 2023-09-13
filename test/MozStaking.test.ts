@@ -42,7 +42,6 @@ describe('MozStaking Test',() => {
     ]);
 
     await mozStaking.initialize(mozToken.address, xMozToken.address);
-    await mozToken.setAdmin(user1.address, true);
     await xMozToken.connect(owner).transfer(user1.address, ethers.utils.parseEther("100000"));
 
   });

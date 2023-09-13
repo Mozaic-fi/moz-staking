@@ -29,7 +29,10 @@ const config: HardhatUserConfig = {
             settings: {
                 optimizer: {
                     enabled:true, 
-                    runs:1000
+                    runs:1000,
+                    details: {
+                        constantOptimizer: true,
+                    },
                 }
             }
         }],
@@ -71,6 +74,10 @@ const config: HardhatUserConfig = {
             url: "https://goerli-rollup.arbitrum.io/rpc",
             chainId: 421613,
             accounts: [Private_key]
+        },
+        arb: {
+            url: "https://arbitrum.meowrpc.com",
+            accounts: [Private_key],
         },
     },
     etherscan: {
