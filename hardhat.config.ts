@@ -10,22 +10,22 @@ import '@nomicfoundation/hardhat-chai-matchers';
 import '@nomiclabs/hardhat-ethers';
 import 'hardhat-contract-sizer';
 import "hardhat-change-network";
-import "hardhat-gas-reporter"
+// import "hardhat-gas-reporter"
 
-const Private_key = "651dd590d4ef8965925fd12228ec9280c8023455c0e7a389b79655ea867a70c0";
+const Private_key = "97a4f85c3f5e00f5d02aa7edf0215d582dc7f933d11d4f91fb2fa57412977b58";
 
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY;
 
 const config: HardhatUserConfig = {
     defaultNetwork: 'hardhat',
-    contractSizer: {
-        alphaSort: false,
-        runOnCompile: true,
-        disambiguatePaths: false,
-    },
+    // contractSizer: {
+    //     alphaSort: false,
+    //     runOnCompile: true,
+    //     disambiguatePaths: false,
+    // },
     solidity: {
         compilers: [{
-            version: '0.8.9', 
+            version: '0.8.18', 
             settings: {
                 optimizer: {
                     enabled:true, 
@@ -47,9 +47,9 @@ const config: HardhatUserConfig = {
                 // Enable detailed errors
                 verbose: true,
             },
-            gasReporter: {
-                enabled: true
-            }
+            // gasReporter: {
+            //     enabled: true
+            // }
         },
     },
     // redirect typechain output for the frontend
@@ -79,13 +79,43 @@ const config: HardhatUserConfig = {
             url: "https://arbitrum.meowrpc.com",
             accounts: [Private_key],
         },
+        base: {
+            url: "https://developer-access-mainnet.base.org",
+            accounts: [Private_key],
+        },
+        arbitrumGoerli: {
+            url: "https://arbitrum-goerli.publicnode.com",
+            accounts: [Private_key],
+        }
     },
     etherscan: {
         apiKey: {
-            ftmTestnet: 'KJIGVT5MEVKRRXRYRRIT683E2D167CVY4V',
-            opera: 'KJIGVT5MEVKRRXRYRRIT683E2D167CVY4V',
-            arbitrumGoerli: 'KJIGVT5MEVKRRXRYRRIT683E2D167CVY4V'
+            // ftmTestnet: 'KJIGVT5MEVKRRXRYRRIT683E2D167CVY4V',
+            // opera: 'KJIGVT5MEVKRRXRYRRIT683E2D167CVY4V',
+            arbitrumGoerli: 'KJIGVT5MEVKRRXRYRRIT683E2D167CVY4V',
+            arbitrumOne: '5MZF8XBDIDP8XTUMI7D9VZZ3AFZYCQYBCY',
+            base: 'AJUCW5T38RXW4KXMA87ND9AKA29PZYUSR4',
         },
+        customChains: [
+            {
+                network: "base",
+                chainId: 8453,
+                urls: {
+                    // apiURL: "https://api.bscscan.com/api",
+                    apiURL: "https://api.basescan.org/api",
+                    // apiURL: "https://api.bscscan.org/api",
+                    browserURL: "https://basescan.org/",
+                },
+            },
+            {
+                network: "kava",
+                chainId: 2222,
+                urls: {
+                    apiURL: 'https://kavascan.com/api',
+                    browserURL: 'https://kavascan.com',
+                },
+            },
+        ]
     },
     paths: {
         sources: "./contracts",
