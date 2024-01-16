@@ -4,7 +4,7 @@ async function main() {
 
     console.log("xmoz");
     await hre.run("verify:verify", {
-        address: "0x3a2d5415b7893921Da0384AFEe8D683dDFFedB1e",
+        address: "0x98fbE68d9964F6B86Ff6aA9767139e1731f4F255",
         constructorArguments: [
             "XMOZ",
             "xmoz",
@@ -12,7 +12,7 @@ async function main() {
         ],
     });
     await hre.run("verify:verify", {
-        address: "0xd6Fd59E8B1fE40a8974099056369f9e09Cec8d7c",
+        address: "0x2Dc9d44DC4BA74946fFca561Bc3aEF0a7b3d4251",
         constructorArguments: [
             "USDC",
             "usdc",
@@ -20,7 +20,7 @@ async function main() {
         ],
     });
     await hre.run("verify:verify", {
-        address: "0x24CB39d272bF5975dC38991eF3eBfd6f4159D12C",
+        address: "0xDd302224FDd93e7C42D5a623ecA36e8E42BF92e0",
         constructorArguments: [
             "USDT",
             "usdt",
@@ -29,17 +29,17 @@ async function main() {
     });
     console.log("staking");
     await hre.run("verify:verify", {
-        address: "0x43Ad3f8e2A36493871bC05FeD31c4A8E545B3Fc0",
+        address: "0x43CA2fB0FAbE7011869e8DB7c64a1dD226D00595",
         constructorArguments: [
-            "0x3a2d5415b7893921Da0384AFEe8D683dDFFedB1e",
+            "0x98fbE68d9964F6B86Ff6aA9767139e1731f4F255",
             0
         ],
     }); 
 
-        await hre.run("verify:verify", {
-        address: "0xFF66ccE6F8F9E57bEBe4dBFD5D9f68B9B1a448bc",
-        constructorArguments: [],
-    });
+    //     await hre.run("verify:verify", {
+    //     address: "0xFF66ccE6F8F9E57bEBe4dBFD5D9f68B9B1a448bc",
+    //     constructorArguments: [],
+    // });
 }
 main()
     .then(() => process.exit(0))

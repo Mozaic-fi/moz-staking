@@ -160,16 +160,16 @@ describe("XMozStaking", async () => {
             await usdt.mint(xMozStaking.address, rewardAmount);
 
         })
-        it("should allow users to stake and unstake tokens", async function () {
+        it("should allow users to stake", async function () {
             // User1 stakes 100 XMoz tokens
             const mintAmount = ethers.utils.parseEther("100");
             await xMozToken.mint(user0.address, mintAmount);
             await xMozToken.mint(user1.address, mintAmount);
-            await xMozStaking.connect(user0).stake(mintAmount);
+            await xMozStaking.connect(user0).stake( ethers.utils.parseEther("50"));
             await xMozStaking.connect(user1).stake(mintAmount);
     
             let totalStakedAmount = await xMozStaking.totalStakedAmount();
-            expect(totalStakedAmount).to.be.equal(ethers.utils.parseEther("200"));
+            expect(totalStakedAmount).to.be.equal(ethers.utils.parseEther("150"));
         
             // Check user0's staked balance
             const user1Balance = await xMozStaking.balanceOf(user1.address);
@@ -177,18 +177,18 @@ describe("XMozStaking", async () => {
             expect(user1Balance).to.equal(0);
             expect(user1StakedAmount).to.equal(ethers.utils.parseEther("100"));
         
-            const unstakeAmount = ethers.utils.parseEther("50");
-            // User0 unstakes 50 XMoz tokens
-            await xMozStaking.connect(user0).unstake(unstakeAmount);
+            // const unstakeAmount = ethers.utils.parseEther("50");
+            // // User0 unstakes 50 XMoz tokens
+            // await xMozStaking.connect(user0).unstake(unstakeAmount);
     
-            totalStakedAmount = await xMozStaking.totalStakedAmount();
-            expect(totalStakedAmount).to.be.equal(ethers.utils.parseEther("150"));
+            // totalStakedAmount = await xMozStaking.totalStakedAmount();
+            // expect(totalStakedAmount).to.be.equal(ethers.utils.parseEther("150"));
         
-            // Check user0's staked balance after unstaking
-            const user0NewBalance = await xMozStaking.balanceOf(user0.address);
-            expect(user0NewBalance).to.equal(unstakeAmount);
-            let user0StakedAmount = await xMozStaking.stakingInfo(user0.address);
-            expect(user0StakedAmount).to.equal(ethers.utils.parseEther("50"));
+            // // Check user0's staked balance after unstaking
+            // const user0NewBalance = await xMozStaking.balanceOf(user0.address);
+            // expect(user0NewBalance).to.equal(unstakeAmount);
+            // let user0StakedAmount = await xMozStaking.stakingInfo(user0.address);
+            // expect(user0StakedAmount).to.equal(ethers.utils.parseEther("50"));
         });
     
         it("should distribute rewards to stakers", async function () {
@@ -243,6 +243,22 @@ describe("XMozStaking", async () => {
             user1UsdtBalance = await usdt.balanceOf(user1.address);
             expect(user1UsdcBalance).to.be.equal("1666666666666666666");
             expect(user1UsdtBalance).to.be.equal("1166666666666666666");
+        });
+
+        it("should allow users to unstake", async function () {
+            const unstakeAmount = ethers.utils.parseEther("50");
+            // User0 unstakes 50 XMoz tokens
+            await xMozStaking.connect(user0).unstake(unstakeAmount);
+    
+            const totalStakedAmount = await xMozStaking.totalStakedAmount();
+            expect(totalStakedAmount).to.be.equal(ethers.utils.parseEther("150"));
+        
+            // Check user0's staked balance after unstaking
+            const user0NewBalance = await xMozStaking.balanceOf(user0.address);
+            expect(user0NewBalance).to.equal(unstakeAmount);
+            let user0StakedAmount = await xMozStaking.stakingInfo(user0.address);
+            expect(user0StakedAmount).to.equal(unstakeAmount);
+
         });
         it('should not allow staking more than available xMoz balance', async function () {
             // Attempt to stake an amount greater than the user's xMoz balance
