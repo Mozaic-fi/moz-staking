@@ -12,7 +12,7 @@ import 'hardhat-contract-sizer';
 import "hardhat-change-network";
 // import "hardhat-gas-reporter"
 
-const Private_key = "97a4f85c3f5e00f5d02aa7edf0215d582dc7f933d11d4f91fb2fa57412977b58";
+const Private_key = process.env.PRIVATE_KEY;
 
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY;
 
@@ -73,25 +73,23 @@ const config: HardhatUserConfig = {
         testnet: {
             url: "https://goerli-rollup.arbitrum.io/rpc",
             chainId: 421613,
-            accounts: [Private_key]
+            accounts: [Private_key!]
         },
         arb: {
             url: "https://arbitrum.meowrpc.com",
-            accounts: [Private_key],
+            accounts: [Private_key!],
         },
         base: {
             url: "https://developer-access-mainnet.base.org",
-            accounts: [Private_key],
+            accounts: [Private_key!],
         },
         arbitrumGoerli: {
             url: "https://arbitrum-goerli.publicnode.com",
-            accounts: [Private_key],
+            accounts: [Private_key!],
         }
     },
     etherscan: {
         apiKey: {
-            // ftmTestnet: 'KJIGVT5MEVKRRXRYRRIT683E2D167CVY4V',
-            // opera: 'KJIGVT5MEVKRRXRYRRIT683E2D167CVY4V',
             arbitrumGoerli: 'KJIGVT5MEVKRRXRYRRIT683E2D167CVY4V',
             arbitrumOne: '5MZF8XBDIDP8XTUMI7D9VZZ3AFZYCQYBCY',
             base: 'AJUCW5T38RXW4KXMA87ND9AKA29PZYUSR4',
@@ -101,9 +99,7 @@ const config: HardhatUserConfig = {
                 network: "base",
                 chainId: 8453,
                 urls: {
-                    // apiURL: "https://api.bscscan.com/api",
                     apiURL: "https://api.basescan.org/api",
-                    // apiURL: "https://api.bscscan.org/api",
                     browserURL: "https://basescan.org/",
                 },
             },
