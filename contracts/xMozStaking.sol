@@ -68,7 +68,7 @@ contract XMozStaking is Ownable {
     event Stake(address user, uint256 amount);
     event Unstake(address user, uint256 amount);
     event ClaimReward(address user);
-    event SetRouterConfig(address[] rewardTokens, uint256[] rewardAmountsPerWeek);
+    event SetRewardConfig(address[] rewardTokens, uint256[] rewardAmountsPerWeek);
     event SetSkippedTokens(address[] skippedTokens);
 
     // Contract constructor
@@ -90,7 +90,7 @@ contract XMozStaking is Ownable {
             rewardAmountsPerWeek[_rewardTokens[i]] = _rewardAmountsPerWeek[i];
         }
         // Emit an event indicating the reward configuration has been updated
-        emit SetRouterConfig(_rewardTokens, _rewardAmountsPerWeek);
+        emit SetRewardConfig(_rewardTokens, _rewardAmountsPerWeek);
     }
 
     // Function to set the list of skipped tokens
