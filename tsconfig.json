@@ -9,6 +9,7 @@
     "strict": true,
     "sourceMap": true,
     "resolveJsonModule": true,
+    "noImplicitAny": false,
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules", "artifacts", "cache"],
