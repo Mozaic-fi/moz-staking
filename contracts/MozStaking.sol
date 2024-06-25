@@ -77,7 +77,7 @@ contract MozStaking is Ownable {
     /**
     * @dev Initialize contract parameters
      */
-    function initialize(address mozaicToken_, address xMoztoken_) external {
+    function initialize(address mozaicToken_, address xMoztoken_) external onlyOwner  {
         require(mozaicToken_ != address(0x0) || xMoztoken_ != address(0x0), "Invalid addr");
         require(!flag, "Already initialized");
         mozaicToken = IMozToken(mozaicToken_);
