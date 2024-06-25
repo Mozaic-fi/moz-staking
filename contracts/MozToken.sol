@@ -44,7 +44,13 @@ contract MozToken is Ownable, OFTV2 {
 		uint8 _sharedDecimals
 	) OFTV2("Mozaic Token", "MOZ", _sharedDecimals, _layerZeroEndpoint) {
         require(_mozStaking != address(0x0), "Invalid address");
-		_mint(msg.sender, 1000000000 * 10 ** _sharedDecimals);
+        
+        /**
+          * @notice: While deploying the original contract on Arbitrum the totoall supply of 1B tokens were minted
+          * no more tokens should be minted upon consequent deployments on other chains.
+         */
+        
+		//_mint(msg.sender, 1000000000 * 10 ** _sharedDecimals);
         mozStaking = _mozStaking;
         liquidityFee = 125; // 1.25%
         treasuryFee = 125; // 1.25%
@@ -53,16 +59,7 @@ contract MozToken is Ownable, OFTV2 {
 
     receive() external payable {}
 
-    /***********************************************/
-	/********************* EVENT *******************/
-	/***********************************************/
-
-    event SetAutomatedMarketMakerPair(address indexed pair, bool indexed value);
-
-    event TreasuryWalletUpdated(
-        address indexed newWallet,
-        address indexed oldWallet
-    );
+    
 
     /***********************************************/
 	/****************** MODIFIERS ******************/
