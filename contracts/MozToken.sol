@@ -314,9 +314,7 @@ contract MozToken is Ownable, OFTV2, IERC721Receiver {
         }
 
         // Halve the amount of liquidity tokens
-        uint256 liquidityTokens = (contractBalance * tokensForLiquidity) /
-            totalTokensToSwap /
-            2;
+        uint256 liquidityTokens = (contractBalance * tokensForLiquidity) / totalTokensToSwap / 2;
         uint256 treasuryMozToken = (contractBalance * tokensForTreasury) / totalTokensToSwap / 2;
         uint256 amountToSwapForETH = contractBalance / 2;
 
