@@ -43,6 +43,6 @@
   },
   "dependencies": {
     "@uniswap/v3-periphery": "^1.4.4",
-    "hardhat-gas-reporter": "^1.0.9"
+    "hardhat-gas-reporter": "^1.0.10"
   }
 }
