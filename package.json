@@ -28,7 +28,7 @@
     "@typechain/hardhat": "^6.1.0",
     "@types/chai": "^4.2.18",
     "@types/jest": "^29.4.0",
-    "@types/mocha": "^8.2.2",
+    "@types/mocha": "^10.0.7",
     "@types/node": "^15.14.9",
     "chai": "^4.3.4",
     "dotenv": "^9.0.2",
