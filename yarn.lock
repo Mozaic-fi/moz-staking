@@ -574,17 +574,26 @@
     "@jridgewell/resolve-uri" "^3.0.3"
     "@jridgewell/sourcemap-codec" "^1.4.10"
 
-"@layerzerolabs/solidity-examples@^0.0.10":
-  version "0.0.10"
-  resolved "https://registry.npmjs.org/@layerzerolabs/solidity-examples/-/solidity-examples-0.0.10.tgz"
-  integrity sha512-+fE7FlM1LJRHCcBHzH/um5jh3TnTVnG8nyhj+Kt9OLrVXz8zV4DCbP0Ne7/rcnA6rWoVbdO0RoClcP3JgMtv7w==
+"@layerzerolabs/lz-evm-sdk-v1-0.7@^1.5.14":
+  version "1.5.16"
+  resolved "https://registry.yarnpkg.com/@layerzerolabs/lz-evm-sdk-v1-0.7/-/lz-evm-sdk-v1-0.7-1.5.16.tgz#7994c8983b2b2dea81e54c57c09b96ef026c4ec3"
+  integrity sha512-YYuEU1SsedZkjLxf9Ur2Pmqtud/EBoWemEJaNxT4VMnGMZ1s8g2ehxraGk4ucRBsHDlVFHm5GHjxcWpxdg5xBw==
   dependencies:
+    "@openzeppelin/contracts" "3.4.2-solc-0.7"
+    "@openzeppelin/contracts-upgradeable" "3.4.2-solc-0.7"
+
+"@layerzerolabs/solidity-examples@^1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@layerzerolabs/solidity-examples/-/solidity-examples-1.1.0.tgz#c8f23065c3ec0f79104f538e65d98eacb1689f9b"
+  integrity sha512-hh9FbWbnt/JEdzfM5s6+lv8DeOwQ+lU6b0cuTyCM0wulerUSqVVkBWfs1CKodwDvvbZdLV5BhTJl9AVflIDOHQ==
+  dependencies:
+    "@layerzerolabs/lz-evm-sdk-v1-0.7" "^1.5.14"
+    "@openzeppelin-3/contracts" "npm:@openzeppelin/contracts@^3.4.2-solc-0.7"
     "@openzeppelin/contracts" "^4.4.1"
     "@openzeppelin/contracts-upgradeable" "^4.6.0"
     "@openzeppelin/hardhat-upgrades" "^1.18.3"
-    "@uniswap/v2-core" "^1.0.1"
-    "@uniswap/v2-periphery" "^1.1.0-beta.0"
     dotenv "^10.0.0"
+    erc721a "^4.2.3"
     hardhat "^2.8.0"
     hardhat-contract-sizer "^2.1.1"
     hardhat-deploy "^0.10.5"
@@ -672,6 +681,16 @@
   integrity sha512-SrTLufY21t78KLpJL5fS6gHIsCwVv0yWsHp1aQOPL1qwRWpe0Mnh5wb2YzBHd3Dbr/KzUYys+j2ui0PsSVU9pg==
   dependencies:
     solhint "^2.0.0"
+
+"@openzeppelin-3/contracts@npm:@openzeppelin/contracts@^3.4.2-solc-0.7":
+  version "3.4.2"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-3.4.2.tgz#d81f786fda2871d1eb8a8c5a73e455753ba53527"
+  integrity sha512-z0zMCjyhhp4y7XKAcDAi3Vgms4T2PstwBdahiO0+9NaGICQKjynK3wduSRplTgk4LXmoO1yfDGO5RbjKYxtuxA==
+
+"@openzeppelin/contracts-upgradeable@3.4.2-solc-0.7":
+  version "3.4.2-solc-0.7"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts-upgradeable/-/contracts-upgradeable-3.4.2-solc-0.7.tgz#9a5cdaf9f65bcd9a3b7e865f44a6f672afe7785e"
+  integrity sha512-I5iKKS8U9L1XdSxsNAIBQekN0U9hTgdleoyntIdR7Jy3U/z/NZ/1oUM0v5HnUMrmn/bXLvYL94rBvaLF++Ndnw==
 
 "@openzeppelin/contracts-upgradeable@^4.6.0":
   version "4.8.3"
@@ -1120,33 +1139,15 @@
   resolved "https://registry.yarnpkg.com/@ungap/structured-clone/-/structured-clone-1.2.0.tgz#756641adb587851b5ccb3e095daf27ae581c8406"
   integrity sha512-zuVdFrMJiuCDQUMCzQaD6KL28MjnqqN8XnAqiEq9PNm/hCPTSGfrXCOfwj1ow4LFb/tNymJPwsNbVePc1xFqrQ==
 
-"@uniswap/lib@1.1.1":
-  version "1.1.1"
-  resolved "https://registry.npmjs.org/@uniswap/lib/-/lib-1.1.1.tgz"
-  integrity sha512-2yK7sLpKIT91TiS5sewHtOa7YuM8IuBXVl4GZv2jZFys4D2sY7K5vZh6MqD25TPA95Od+0YzCVq6cTF2IKrOmg==
-
 "@uniswap/lib@^4.0.1-alpha":
   version "4.0.1-alpha"
   resolved "https://registry.npmjs.org/@uniswap/lib/-/lib-4.0.1-alpha.tgz"
   integrity sha512-f6UIliwBbRsgVLxIaBANF6w09tYqc6Y/qXdsrbEmXHyFA7ILiKrIwRFXe1yOg8M3cksgVsO9N7yuL2DdCGQKBA==
 
-"@uniswap/v2-core@1.0.0":
-  version "1.0.0"
-  resolved "https://registry.npmjs.org/@uniswap/v2-core/-/v2-core-1.0.0.tgz"
-  integrity sha512-BJiXrBGnN8mti7saW49MXwxDBRFiWemGetE58q8zgfnPPzQKq55ADltEILqOt6VFZ22kVeVKbF8gVd8aY3l7pA==
-
 "@uniswap/v2-core@^1.0.1":
   version "1.0.1"
   resolved "https://registry.npmjs.org/@uniswap/v2-core/-/v2-core-1.0.1.tgz"
   integrity sha512-MtybtkUPSyysqLY2U210NBDeCHX+ltHt3oADGdjqoThZaFRDKwM6k1Nb3F0A3hk5hwuQvytFWhrWHOEq6nVJ8Q==
-
-"@uniswap/v2-periphery@^1.1.0-beta.0":
-  version "1.1.0-beta.0"
-  resolved "https://registry.npmjs.org/@uniswap/v2-periphery/-/v2-periphery-1.1.0-beta.0.tgz"
-  integrity sha512-6dkwAMKza8nzqYiXEr2D86dgW3TTavUvCR0w2Tu33bAbM8Ah43LKAzH7oKKPRT5VJQaMi1jtkGs1E8JPor1n5g==
-  dependencies:
-    "@uniswap/lib" "1.1.1"
-    "@uniswap/v2-core" "1.0.0"
 
 "@uniswap/v3-core@^1.0.0":
   version "1.0.1"
@@ -2239,6 +2240,11 @@ env-paths@^2.2.0:
   version "2.2.1"
   resolved "https://registry.npmjs.org/env-paths/-/env-paths-2.2.1.tgz"
   integrity sha512-+h1lkLKhZMTYjog1VEpJNG7NZJWcuc2DDk/qsqSTRRCOXiLjeQ1d1/udrUGhqMxUgAlwKNZ0cf2uqan5GLuS2A==
+
+erc721a@^4.2.3:
+  version "4.3.0"
+  resolved "https://registry.yarnpkg.com/erc721a/-/erc721a-4.3.0.tgz#d4590030f7c60deee45db1dc4e43fc4c93218353"
+  integrity sha512-JneTLVEH5I/rJMArAwwJ26CX4HvL3ql9Q3egpQ4QB7sz7vIGZbMdMmqHLBIIKhBlfToZKewtC7OZtdr3qU6jsA==
 
 errno@~0.1.1:
   version "0.1.8"
